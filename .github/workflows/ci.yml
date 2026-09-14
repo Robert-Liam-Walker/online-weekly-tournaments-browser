@@ -1,0 +1,28 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run build -w packages/shared
+      - run: npm run build -w packages/engine
+      - run: npm test -w packages/shared
+      - run: npm test -w packages/engine
+      - run: npm run typecheck -w apps/api
+      - run: npm test -w apps/api
+      - run: npm run build -w apps/web

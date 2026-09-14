@@ -1,0 +1,27 @@
+{
+  "name": "owt-browser",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Online Weekly Tournament Series: browser edition. 100-player Melee stamina royale, played in the browser.",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "dev": "concurrently -n api,web -c blue,magenta \"npm run dev -w apps/api\" \"npm run dev -w apps/web\"",
+    "db": "node scripts/dev-db.mjs",
+    "bots": "node scripts/bots.mjs",
+    "build": "npm run build -w packages/shared && npm run build -w packages/engine && npm run build -w apps/api && npm run build -w apps/web",
+    "test": "npm test -w packages/shared && npm test -w packages/engine && npm test -w apps/api",
+    "typecheck": "npm run typecheck --workspaces --if-present"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2",
+    "embedded-postgres": "^18.4.0-beta.17",
+    "socket.io-client": "^4.8.1",
+    "typescript": "^5.9.2"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

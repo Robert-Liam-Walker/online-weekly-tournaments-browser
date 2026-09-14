@@ -1,0 +1,25 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root { color-scheme: dark; }
+html, body, #root { min-height: 100%; }
+body { background: #06080d; }
+
+.arcade { font-family: "Press Start 2P", ui-monospace, monospace; -webkit-font-smoothing: none; }
+
+.btn { @apply inline-flex items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-50; }
+.btn-gold { @apply btn bg-gold-400 text-ink-950 hover:bg-gold-300; }
+.btn-ghost { @apply btn border border-ink-600 bg-transparent text-slate-200 hover:border-gold-400 hover:text-gold-300; }
+.card { @apply rounded-lg border border-ink-700 bg-ink-900/80 p-5; }
+.input { @apply w-full rounded-md border border-ink-600 bg-ink-800 px-3 py-2 text-slate-100 outline-none placeholder:text-slate-500 focus:border-gold-400; }
+.label { @apply mb-1 block text-xs font-semibold uppercase tracking-wider text-slate-400; }
+.kicker { @apply arcade text-[10px] tracking-[0.2em] text-gold-400; }
+
+@keyframes blink { 0%, 49% { opacity: 1 } 50%, 100% { opacity: 0 } }
+.blink { animation: blink 1s steps(1) infinite; }
+
+.scanlines::after {
+  content: ""; position: absolute; inset: 0; pointer-events: none;
+  background: repeating-linear-gradient(to bottom, transparent 0 2px, rgba(0,0,0,.18) 3px 4px);
+}

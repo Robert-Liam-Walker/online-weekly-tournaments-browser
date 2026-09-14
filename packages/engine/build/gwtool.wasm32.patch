@@ -1,0 +1,25 @@
+# gwtool.wasm32.patch
+#
+# Makes gwtool's output target a command-line option so the same IR transform can
+# emit wasm32 bitcode. build.sh applies this against the pc-port tree when it is a
+# real diff (it checks for a "diff --git" header); until then stage 2 fails loudly.
+#
+# Intended change to pc/tools/gwtool/gwtool.cpp:
+#
+#   + cl::opt<std::string> TargetTriple("triple", cl::desc("Output target triple"),
+#   +                                   cl::init("i686-pc-windows-msvc"));
+#   - Triple NewT("i686-pc-windows-msvc");
+#   + Triple NewT(TargetTriple);
+#   + LLVMInitializeWebAssemblyTargetInfo(); LLVMInitializeWebAssemblyTarget();
+#   + LLVMInitializeWebAssemblyTargetMC();   LLVMInitializeWebAssemblyAsmPrinter();
+#   * When NewT.isWasm(): CPUName -> "generic", FeatureStr -> "", and the pointer
+#     fixup table is emitted as a plain global array "__gwfix_table" with a count
+#     "__gwfix_count" instead of the COFF ".gwfix$a/$m/$z" section trick (wasm-ld
+#     has no grouped-section ordering). The runtime (gw_runtime.c) walks the array.
+#
+# The LayoutChecker (PowerPC vs new data layout) is expected to pass unchanged:
+# wasm32-unknown-emscripten is ILP32 with 8-byte f64/i64 alignment, the same as
+# the i686-pc-windows-msvc layout the port already verifies against.
+#
+# Generate the real patch from a working tree with:
+#   git diff -- pc/tools/gwtool/gwtool.cpp pc/platform/gw_runtime.c > gwtool.wasm32.patch

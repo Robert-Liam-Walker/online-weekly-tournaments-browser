@@ -1,0 +1,19 @@
+node_modules/
+dist/
+*.log
+.env
+.env.*
+!.env.example
+coverage/
+.DS_Store
+# Engine build outputs (the wasm is produced by engine/build, never committed)
+packages/engine/wasm/*.wasm
+packages/engine/wasm/*.js
+# No game data, ever. Assets are extracted from the player's own disc in the browser.
+*.iso
+*.gcm
+*.dat
+*.hps
+
+# local dev database
+.devdb/

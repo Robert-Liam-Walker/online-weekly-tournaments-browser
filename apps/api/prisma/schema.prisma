@@ -1,0 +1,79 @@
+// Data model for the browser royale. Small on purpose: accounts, weekly events,
+// who signed up, and where they placed. Everything live (rooms, inputs, world
+// state) is in memory on the room server and never touches the database.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  USER
+  ADMIN
+}
+
+enum EventStatus {
+  SCHEDULED
+  LOBBY
+  LIVE
+  COMPLETE
+  CANCELLED
+}
+
+model User {
+  id            String         @id @default(cuid())
+  username      String         @unique
+  email         String         @unique
+  passwordHash  String
+  role          UserRole       @default(USER)
+  createdAt     DateTime       @default(now())
+  registrations Registration[]
+  placements    Placement[]
+}
+
+model WeeklyEvent {
+  id            String         @id @default(cuid())
+  title         String
+  scheduledAt   DateTime
+  status        EventStatus    @default(SCHEDULED)
+  startedAt     DateTime?
+  endedAt       DateTime?
+  createdAt     DateTime       @default(now())
+  registrations Registration[]
+  placements    Placement[]
+
+  @@index([status, scheduledAt])
+}
+
+model Registration {
+  id        String      @id @default(cuid())
+  userId    String
+  eventId   String
+  createdAt DateTime    @default(now())
+  user      User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  event     WeeklyEvent @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, eventId])
+  @@index([eventId])
+}
+
+model Placement {
+  id        String      @id @default(cuid())
+  eventId   String
+  userId    String
+  roomIndex Int
+  place     Int
+  entrants  Int
+  kos       Int         @default(0)
+  points    Int
+  createdAt DateTime    @default(now())
+  user      User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  event     WeeklyEvent @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@unique([eventId, userId])
+  @@index([userId])
+}

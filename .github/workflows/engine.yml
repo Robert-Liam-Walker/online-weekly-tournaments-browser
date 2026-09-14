@@ -1,0 +1,35 @@
+name: Engine (wasm)
+
+# Attempts the decomp -> wasm engine build on Linux, where LLVM dev packages are
+# an apt install away. Each stage of packages/engine/build/build.sh is a gate;
+# the log says which one stopped it. Runs on demand and when the build changes.
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "packages/engine/build/**"
+      - ".github/workflows/engine.yml"
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install LLVM + clang (all targets) and emsdk
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang llvm-dev lld zlib1g-dev python3 ninja-build
+          git clone --depth=1 https://github.com/emscripten-core/emsdk.git "$HOME/emsdk"
+          "$HOME/emsdk/emsdk" install latest
+          "$HOME/emsdk/emsdk" activate latest
+      - name: Build engine.wasm
+        run: |
+          source "$HOME/emsdk/emsdk_env.sh"
+          bash packages/engine/build/build.sh
+      - uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: engine-wasm
+          path: packages/engine/wasm/engine.wasm
