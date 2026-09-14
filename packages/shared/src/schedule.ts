@@ -43,5 +43,5 @@ export function nextWeeklyStart(now: Date = new Date()): Date {
 
 export function weeklyTitleFor(start: Date): string {
   const d = new Intl.DateTimeFormat("en-US", { timeZone: WEEKLY_TIME_ZONE, month: "short", day: "numeric", year: "numeric" }).format(start);
-  return `Weekly Royale, ${d}`;
+  return `Weekly ${d}`;
 }

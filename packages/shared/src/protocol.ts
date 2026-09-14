@@ -1,57 +1,57 @@
-// Room socket protocol (socket.io event names + payloads). One namespace, "/room".
-import type { PlayerInput, EngineEvent } from "./engine-types.js";
+// Socket protocol. "/lobby" is public (event + bracket updates); "/match" is
+// authenticated and carries one player's current set.
+import type { EngineEvent, PlayerInput } from "./engine-types.js";
 import type { PackedWorld } from "./pack.js";
+import type { SetAction, SetState } from "./set.js";
 
-export type RoomPhase = "waiting" | "countdown" | "live" | "finished" | "voided";
+export type MatchPhase = "waiting" | "no_match" | "setup" | "countdown" | "live" | "between" | "complete" | "forfeited";
 
-export interface RosterEntry {
-  slot: number;
+export interface MatchPlayer {
   userId: string;
   username: string;
   connected: boolean;
 }
 
-export interface RoomWelcome {
-  roomId: string;
+/** Everything a client needs to render its current match. Sent on join and on every change. */
+export interface MatchView {
   eventId: string;
-  roomIndex: number;
-  slot: number;            // -1 for spectators
-  phase: RoomPhase;
-  startAt: number | null;  // epoch ms when the first frame runs
-  tick: number;
-  seed: number;
-  roster: RosterEntry[];
+  matchKey: string | null;      // null while waiting for a match
+  format: "BO3" | "BO5" | null;
+  roundLabel: string | null;    // e.g. "Winners Round 2"
+  slot: 0 | 1 | -1;             // -1 = spectator
+  players: [MatchPlayer, MatchPlayer] | null;
+  set: SetState | null;
+  phase: MatchPhase;
+  /** epoch ms when the current game starts (countdown) */
+  startAt: number | null;
   engine: "stub" | "wasm";
-  serverTime: number;      // epoch ms, for clock offset
+  serverTime: number;
+  /** who must act now, or null; mirrors set turn but also covers blind/ready */
+  waitingOn: (0 | 1)[];
+  noShowDeadline: number | null; // epoch ms after which the absent player forfeits
 }
 
-export interface RoomResult {
-  place: number;
-  entrants: number;
-  points: number;
-  kos: number;
+export interface ClientToMatch {
+  "match:join": (p: { eventId: string }, ack: (r: MatchView | { error: string }) => void) => void;
+  "match:action": (p: { action: SetAction }, ack: (r: { ok: true } | { error: string }) => void) => void;
+  "match:input": (p: { input: PlayerInput }) => void;
+  "match:leave": () => void;
 }
 
-/** Client -> server events. */
-export interface ClientToRoom {
-  "room:join": (p: { eventId: string }, ack: (r: RoomWelcome | { error: string }) => void) => void;
-  "room:input": (p: { input: PlayerInput }) => void;
-  "room:leave": () => void;
+export interface MatchToClient {
+  "match:view": (v: MatchView) => void;
+  "match:snapshot": (s: PackedWorld) => void;
+  "match:events": (e: EngineEvent[]) => void;
 }
 
-/** Server -> client events. */
-export interface RoomToClient {
-  "room:roster": (roster: RosterEntry[]) => void;
-  "room:phase": (p: { phase: RoomPhase; startAt: number | null }) => void;
-  "room:snapshot": (s: PackedWorld) => void;
-  "room:events": (e: EngineEvent[]) => void;
-  "room:result": (r: RoomResult) => void;
-}
-
-/** Lobby namespace ("/lobby") pushes registration counts and phase changes. */
+/** Lobby namespace pushes. */
 export interface LobbyEventUpdate {
   eventId: string;
   status: string;
   registered: number;
   present: number;
+}
+
+export interface BracketUpdate {
+  eventId: string;
 }

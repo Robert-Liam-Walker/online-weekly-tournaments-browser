@@ -1,11 +1,11 @@
 # @owt/engine
 
-The game engine boundary for the browser royale. Two implementations sit behind one
+The game engine boundary for the browser weekly. Two implementations sit behind one
 `Engine` interface (`@owt/shared`, `engine-types.ts`):
 
 | Kind | What | Status |
 |---|---|---|
-| `stub` | Deterministic placeholder sim: box arena, stamina HP, hits, knockback, eliminations. The same code runs on the room server (authority) and in the browser (prediction and rendering). | Shipped. Runs the platform end to end today. |
+| `stub` | Deterministic placeholder 1v1: stage with platforms, percent-based knockback, stocks, blast zones, clock and the time-out tie-breaker. The same code runs on the match server (authority) and in the browser (rendering). | Shipped. Runs the platform end to end today. |
 | `wasm` | Super Smash Bros. Melee's own fighter, physics and collision code from the [matching decompilation](https://github.com/doldecomp/melee), compiled to WebAssembly. | In progress. See `build/` and `docs/ENGINE.md`. |
 
 The room server, the protocol, the lobby, results and leaderboard never know which

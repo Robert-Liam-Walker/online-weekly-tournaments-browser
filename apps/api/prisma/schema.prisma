@@ -1,6 +1,6 @@
-// Data model for the browser royale. Small on purpose: accounts, weekly events,
-// who signed up, and where they placed. Everything live (rooms, inputs, world
-// state) is in memory on the room server and never touches the database.
+// Data model for the browser weekly. Accounts, weekly events, who signed up,
+// every set's result (so a bracket can be rebuilt after a restart), and final
+// placements. Live match state (picks, inputs, world) is in memory only.
 
 generator client {
   provider = "prisma-client-js"
@@ -24,27 +24,38 @@ enum EventStatus {
   CANCELLED
 }
 
+enum MatchStatus {
+  PENDING
+  LIVE
+  DONE
+}
+
 model User {
-  id            String         @id @default(cuid())
-  username      String         @unique
-  email         String         @unique
+  id            String            @id @default(cuid())
+  username      String            @unique
+  email         String            @unique
   passwordHash  String
-  role          UserRole       @default(USER)
-  createdAt     DateTime       @default(now())
+  role          UserRole          @default(USER)
+  createdAt     DateTime          @default(now())
   registrations Registration[]
   placements    Placement[]
+  matchesAsP1   TournamentMatch[] @relation("p1")
+  matchesAsP2   TournamentMatch[] @relation("p2")
 }
 
 model WeeklyEvent {
-  id            String         @id @default(cuid())
+  id            String            @id @default(cuid())
   title         String
   scheduledAt   DateTime
-  status        EventStatus    @default(SCHEDULED)
+  status        EventStatus       @default(SCHEDULED)
+  /** Entrant user ids in seed order, set when the bracket is drawn. */
+  seedOrder     String[]          @default([])
   startedAt     DateTime?
   endedAt       DateTime?
-  createdAt     DateTime       @default(now())
+  createdAt     DateTime          @default(now())
   registrations Registration[]
   placements    Placement[]
+  matches       TournamentMatch[]
 
   @@index([status, scheduledAt])
 }
@@ -61,14 +72,34 @@ model Registration {
   @@index([eventId])
 }
 
+model TournamentMatch {
+  id        String      @id @default(cuid())
+  eventId   String
+  matchKey  String      // "W1-3", "L2-1", "GF", "GFR"
+  status    MatchStatus @default(PENDING)
+  p1Id      String?
+  p2Id      String?
+  winnerId  String?
+  score1    Int         @default(0)
+  score2    Int         @default(0)
+  games     Json        @default("[]")
+  forfeit   Boolean     @default(false)
+  updatedAt DateTime    @updatedAt
+  event     WeeklyEvent @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  p1        User?       @relation("p1", fields: [p1Id], references: [id], onDelete: SetNull)
+  p2        User?       @relation("p2", fields: [p2Id], references: [id], onDelete: SetNull)
+
+  @@unique([eventId, matchKey])
+}
+
 model Placement {
   id        String      @id @default(cuid())
   eventId   String
   userId    String
-  roomIndex Int
   place     Int
   entrants  Int
-  kos       Int         @default(0)
+  setsWon   Int         @default(0)
+  setsLost  Int         @default(0)
   points    Int
   createdAt DateTime    @default(now())
   user      User        @relation(fields: [userId], references: [id], onDelete: Cascade)

@@ -1,4 +1,5 @@
 // API DTOs shared by apps/api and apps/web.
+import type { GameRecord } from "./set.js";
 
 export type UserRole = "USER" | "ADMIN";
 export type EventStatus = "SCHEDULED" | "LOBBY" | "LIVE" | "COMPLETE" | "CANCELLED";
@@ -18,14 +19,46 @@ export interface WeeklyEventDto {
   registered: number;
   checkedIn: number;
   isRegistered?: boolean;
+  entrants?: number;
+}
+
+export interface BracketPlayerDto {
+  userId: string;
+  username: string;
+  seed: number;
+}
+
+export interface BracketMatchDto {
+  key: string;
+  side: "W" | "L" | "GF" | "GFR";
+  round: number;
+  matchNumber: number;
+  format: "BO3" | "BO5";
+  p1: string | null | undefined;   // user id; null = bye; undefined = TBD
+  p2: string | null | undefined;
+  winnerId: string | null;
+  score: [number, number];
+  games: GameRecord[];
+  done: boolean;
+  cancelled: boolean;
+  live: boolean;
+  forfeit: boolean;
+}
+
+export interface BracketDto {
+  eventId: string;
+  size: number;
+  players: BracketPlayerDto[];
+  matches: BracketMatchDto[];
+  champion: string | null;
 }
 
 export interface PlacementDto {
   userId: string;
   username: string;
-  roomIndex: number;
   place: number;
-  kos: number;
+  setsWon: number;
+  setsLost: number;
   points: number;
 }
 

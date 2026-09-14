@@ -5,22 +5,22 @@ export default function About() {
         <p className="kicker">About</p>
         <h1 className="mt-2 text-3xl font-bold">How this is built</h1>
         <p className="mt-2 text-slate-400">
-          Online Weekly Tournament Series began as a Slippi-based double-elimination weekly with an in-game bracket. This is its browser edition:
-          the same weekly slot, rebuilt as a 100-player stamina royale that needs nothing installed.
+          Online Weekly Tournament Series began as a Slippi-based weekly with an in-game bracket. This is its browser edition: the same weekly slot,
+          the same double-elimination format, with the game itself running in the page.
         </p>
       </div>
 
       <Block title="Platform">
-        <p>A TypeScript monorepo. <code>apps/web</code> is a Vite + React site. <code>apps/api</code> is a Fastify server with Prisma on Postgres for accounts, weekly events, registrations and placements, and a socket.io room server that owns the live boxes. <code>packages/shared</code> holds the rules, the schedule math, the wire protocol and the engine interface; <code>packages/engine</code> holds the two engine implementations.</p>
+        <p>A TypeScript monorepo. <code>apps/web</code> is a Vite + React site. <code>apps/api</code> is a Fastify server with Prisma on Postgres for accounts, weekly events, registrations, every set result and final placements, plus a socket.io match server that runs the live sets. <code>packages/shared</code> holds the ruleset as data, the set state machine (striking, blind picks, bans, counterpicks, DSR, ready-up), the double-elimination bracket engine, the wire protocol and the engine interface; <code>packages/engine</code> holds the two engine implementations.</p>
       </Block>
 
-      <Block title="The room server">
-        <p>Each box is one authoritative simulation stepping at 60 Hz on the server. Players send one input per frame; the server broadcasts a packed snapshot at 20 Hz and the browser interpolates between the last two. Eliminations, placements and points are computed server-side the moment they happen and written to the database when the box ends, so a dropped connection can never lose a result.</p>
+      <Block title="The bracket and the sets">
+        <p>At start time the bracket is drawn from registered players who are in the arena, seeded by season points. Every playable set gets a match room on the server: it walks both players through the ruleset step by step, launches each game as an authoritative 60 Hz simulation, decides the game (stocks, or the time-out tie-breaker), and reports the set into the bracket the moment it ends. The next sets open automatically. No-shows and abandoned sets forfeit on a clock. Every result is persisted, so a server restart rebuilds the bracket and restarts only the unfinished sets.</p>
       </Block>
 
       <Block title="The engine">
-        <p>The engine sits behind a small interface (init, step, state, snapshot). Two implementations exist. The <b>placeholder</b> is a deterministic box-fighter that lets the entire platform run end to end. The <b>Melee engine</b> is the game's own fighter, physics and collision code from the matching decompilation, compiled to WebAssembly.</p>
-        <p className="mt-2">The decomp is C for a big-endian PowerPC whose data files are read in place as structs, so it cannot simply be recompiled for a little-endian target. The engine build reuses the PC port's approach: clang's PowerPC front-end emits LLVM IR, an IR pass rewrites every memory access to keep game memory byte-identical to a GameCube while values stay native in registers, and the module is retargeted, in our case to wasm32 instead of i686. The GameCube SDK is then provided by native shims: disc reads come from the player's own disc image via the File API, the memory card lives in IndexedDB, pads come from the Gamepad API, and rendering goes through Aurora, a GC/Wii SDK reimplementation that already targets WebGPU.</p>
+        <p>The engine sits behind a small interface (init a game with a stage, two characters, stocks and a clock; step; state; snapshot). Two implementations exist. The <b>placeholder</b> is a deterministic box-fighter with percent, knockback, stocks and blast zones that lets the entire platform run end to end. The <b>Melee engine</b> is the game's own fighter, physics and collision code from the matching decompilation, compiled to WebAssembly.</p>
+        <p className="mt-2">The decomp is C for a big-endian PowerPC whose data files are read in place as structs, so it cannot simply be recompiled for a little-endian target. The engine build reuses the PC port's approach: clang's PowerPC front-end emits LLVM IR, an IR pass rewrites every memory access to keep game memory byte-identical to a GameCube while values stay native in registers, and the module is retargeted, in our case to wasm32. The GameCube SDK is then provided by native shims: disc reads from the player's own disc image via the File API, the memory card in IndexedDB, pads from the Gamepad API, rendering through Aurora, a GC/Wii SDK reimplementation that already targets WebGPU.</p>
       </Block>
 
       <Block title="Legal posture">

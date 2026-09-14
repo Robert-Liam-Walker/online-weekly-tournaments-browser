@@ -33,14 +33,15 @@ Emscripten backend. That is the whole plan.
 | 2 | `gwtool` with a `--triple wasm32-unknown-emscripten` option | patch written, CI build pending | `packages/engine/build/gwtool.wasm32.patch` (27 lines: `--triple`, WebAssembly target init, `gwfix` section + `__start_gwfix` in `gw_runtime.c`); gwtool needs LLVM 21+ APIs, so CI installs LLVM 22 from apt.llvm.org (Ubuntu's 18 fails to compile it); Windows LLVM installer ships no dev libs |
 | 3 | All 989 game TUs through clang + gwtool to wasm32 bitcode | not started | `packages/engine/build/build.sh` stage 3 |
 | 4 | Shims under `TARGET_WASM`: DVD from a `File`, CARD in IndexedDB, PAD from Gamepad API, AX via SDL3 audio, GX via Aurora/WebGPU | not started | `pc/platform/*.c` + `packages/engine/build/shims/` |
-| 5 | `owt_*` ABI (`owt_abi.c`) driving a stamina VS match with N fighters on a box stage; headless mode for the room server | not started | `packages/engine/build/shims/owt_abi.c` is the ABI skeleton; `WasmEngine.ts` is the loader |
-| 6 | 100 fighters: the game hard-codes 6 fighter slots (`ftCo`/`Player` arrays, `gm` match structs); the royale needs the fighter table widened and per-fighter memory pooled | not started | the one true game-code change; everything else is platform |
+| 5 | `owt_*` ABI (`owt_abi.c`) driving a 1v1 VS match (stage, two characters, N stocks, timer, items off) with hit/KO/end hooks and a ledge-grab counter; headless mode for the match server | not started | `packages/engine/build/shims/owt_abi.c` is the ABI skeleton; `WasmEngine.ts` is the loader |
+| 6 | Rules hooks the game does not expose as data: ledge-grab counting (LGL), pause off, the timed-out tie-break as a 1-stock rematch | not started | small `TARGET_WASM`-guarded hooks in `gm`/`ft`; everything else is platform |
 
-Stage 6 is the honest headline risk. Melee Royale's author did it (100 in a box), which
-tells us it is feasible on the same codebase; it does not tell us how. The likely shape:
-the fighter table (`Fighter`, `ftCo_GObj` allocation, `Player` block) becomes
-dynamically sized under `TARGET_WASM`, the match-init code loops over N, and the
-camera/HUD paths that assume 4 (or 6) are bypassed by the host, which renders its own HUD.
+A standard 1v1 VS match is exactly what the game already runs, so stage 5 is glue
+(match init through the existing `gm` entry points, input through `shim_pad`,
+reading `ftCo` records) rather than a game-code change. The one real port risk is
+stage 4's rendering path: Aurora on browser WebGPU through Emscripten is plausible
+but unproven; a Melee-Royale-style external renderer reading the game's HSD data is
+the fallback.
 
 ## Assets and legality
 

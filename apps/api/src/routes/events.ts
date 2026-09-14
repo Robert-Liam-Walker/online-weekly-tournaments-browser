@@ -2,50 +2,45 @@ import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { nextWeeklyStart, weeklyTitleFor, type WeeklyEventDto } from "@owt/shared";
 import { prisma } from "../lib/prisma.js";
-import type { RoomManager } from "../room/RoomManager.js";
-import type { LobbyHub } from "../room/socket.js";
+import type { TournamentManager } from "../tournament/TournamentManager.js";
+import type { LobbyHub } from "../tournament/socket.js";
 
-export async function toDto(e: { id: string; title: string; scheduledAt: Date; status: string }, userId?: string, present = 0): Promise<WeeklyEventDto> {
+export async function toDto(e: { id: string; title: string; scheduledAt: Date; status: string; seedOrder?: string[] }, userId?: string, present = 0): Promise<WeeklyEventDto> {
   const registered = await prisma.registration.count({ where: { eventId: e.id } });
   const isRegistered = userId ? !!(await prisma.registration.findUnique({ where: { userId_eventId: { userId, eventId: e.id } } })) : undefined;
-  return { id: e.id, title: e.title, scheduledAt: e.scheduledAt.toISOString(), status: e.status as WeeklyEventDto["status"], registered, checkedIn: present, isRegistered };
+  return { id: e.id, title: e.title, scheduledAt: e.scheduledAt.toISOString(), status: e.status as WeeklyEventDto["status"], registered, checkedIn: present, isRegistered, entrants: e.seedOrder?.length };
 }
 
-async function optionalUserId(app: FastifyInstance, request: Parameters<FastifyInstance["authenticate"]>[0]): Promise<string | undefined> {
-  try {
-    const user = await request.jwtVerify<{ id: string }>();
-    return user.id;
-  } catch {
-    return undefined;
-  }
+async function optionalUserId(request: { jwtVerify: <T>() => Promise<T> }): Promise<string | undefined> {
+  try { return (await request.jwtVerify<{ id: string }>()).id; } catch { return undefined; }
 }
 
-export async function eventRoutes(app: FastifyInstance, deps: { rooms: RoomManager; lobby: LobbyHub }) {
-  const { rooms, lobby } = deps;
+export async function eventRoutes(app: FastifyInstance, deps: { tm: TournamentManager; lobby: LobbyHub }) {
+  const { tm, lobby } = deps;
 
   /** The event players care about right now: LIVE, else LOBBY, else the next SCHEDULED. */
   app.get("/next", async (request) => {
-    const userId = await optionalUserId(app, request);
+    const userId = await optionalUserId(request);
     const e =
       (await prisma.weeklyEvent.findFirst({ where: { status: { in: ["LIVE", "LOBBY"] } }, orderBy: { scheduledAt: "asc" } })) ??
       (await prisma.weeklyEvent.findFirst({ where: { status: "SCHEDULED" }, orderBy: { scheduledAt: "asc" } }));
     if (!e) return { event: null };
-    return { event: await toDto(e, userId, rooms.presentCount(e.id)) };
+    return { event: await toDto(e, userId, tm.presentCount(e.id)) };
   });
 
   app.get("/", async (request) => {
-    const userId = await optionalUserId(app, request);
+    const userId = await optionalUserId(request);
     const q = z.object({ limit: z.coerce.number().int().min(1).max(50).default(12) }).parse(request.query ?? {});
     const list = await prisma.weeklyEvent.findMany({ orderBy: { scheduledAt: "desc" }, take: q.limit });
-    return { events: await Promise.all(list.map((e) => toDto(e, userId, rooms.presentCount(e.id)))) };
+    return { events: await Promise.all(list.map((e) => toDto(e, userId, tm.presentCount(e.id)))) };
   });
 
   app.get("/:id", async (request, reply) => {
-    const userId = await optionalUserId(app, request);
+    const userId = await optionalUserId(request);
     const { id } = request.params as { id: string };
     const e = await prisma.weeklyEvent.findUnique({ where: { id } });
     if (!e) return reply.code(404).send({ error: "No such event" });
-    return { event: await toDto(e, userId, rooms.presentCount(e.id)) };
+    return { event: await toDto(e, userId, tm.presentCount(e.id)) };
   });
 
   app.get("/:id/entrants", async (request, reply) => {
@@ -53,8 +48,16 @@ export async function eventRoutes(app: FastifyInstance, deps: { rooms: RoomManag
     const e = await prisma.weeklyEvent.findUnique({ where: { id } });
     if (!e) return reply.code(404).send({ error: "No such event" });
     const regs = await prisma.registration.findMany({ where: { eventId: id }, include: { user: { select: { id: true, username: true } } }, orderBy: { createdAt: "asc" } });
-    const present = rooms.presentSet(id);
+    const present = tm.presentSet(id);
     return { entrants: regs.map((r) => ({ userId: r.user.id, username: r.user.username, present: present.has(r.user.id) })) };
+  });
+
+  app.get("/:id/bracket", async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const e = await prisma.weeklyEvent.findUnique({ where: { id } });
+    if (!e) return reply.code(404).send({ error: "No such event" });
+    const bracket = tm.bracketDto(id) ?? (await tm.bracketDtoFromDb(id));
+    return { bracket };
   });
 
   app.post("/:id/register", { preHandler: app.authenticate }, async (request, reply) => {
@@ -62,13 +65,9 @@ export async function eventRoutes(app: FastifyInstance, deps: { rooms: RoomManag
     const e = await prisma.weeklyEvent.findUnique({ where: { id } });
     if (!e) return reply.code(404).send({ error: "No such event" });
     if (e.status !== "SCHEDULED" && e.status !== "LOBBY") return reply.code(409).send({ error: "Registration is closed" });
-    await prisma.registration.upsert({
-      where: { userId_eventId: { userId: request.user.id, eventId: id } },
-      create: { userId: request.user.id, eventId: id },
-      update: {},
-    });
+    await prisma.registration.upsert({ where: { userId_eventId: { userId: request.user.id, eventId: id } }, create: { userId: request.user.id, eventId: id }, update: {} });
     await lobby.broadcast(id);
-    return { event: await toDto(e, request.user.id, rooms.presentCount(id)) };
+    return { event: await toDto(e, request.user.id, tm.presentCount(id)) };
   });
 
   app.delete("/:id/register", { preHandler: app.authenticate }, async (request, reply) => {
@@ -78,7 +77,7 @@ export async function eventRoutes(app: FastifyInstance, deps: { rooms: RoomManag
     if (e.status === "LIVE" || e.status === "COMPLETE") return reply.code(409).send({ error: "Too late to withdraw" });
     await prisma.registration.deleteMany({ where: { userId: request.user.id, eventId: id } });
     await lobby.broadcast(id);
-    return { event: await toDto(e, request.user.id, rooms.presentCount(id)) };
+    return { event: await toDto(e, request.user.id, tm.presentCount(id)) };
   });
 
   // ---- admin -------------------------------------------------------------
@@ -91,11 +90,7 @@ export async function eventRoutes(app: FastifyInstance, deps: { rooms: RoomManag
     return { event: await toDto(e, request.user.id) };
   });
 
-  /**
-   * Force an event to start soon: the lobby opens immediately and the start is
-   * moved to one minute from now, so anyone on the arena page has time to
-   * connect before the scheduler draws the boxes.
-   */
+  /** Force an event to start soon: lobby opens now, bracket draws in one minute. */
   app.post("/:id/start", { preHandler: app.requireAdmin }, async (request, reply) => {
     const { id } = request.params as { id: string };
     const e = await prisma.weeklyEvent.findUnique({ where: { id } });
@@ -112,9 +107,18 @@ export async function eventRoutes(app: FastifyInstance, deps: { rooms: RoomManag
     const e = await prisma.weeklyEvent.findUnique({ where: { id } });
     if (!e) return reply.code(404).send({ error: "No such event" });
     if (e.status === "COMPLETE") return reply.code(409).send({ error: "Already complete" });
-    rooms.abortEvent(id);
+    tm.abortEvent(id);
     await prisma.weeklyEvent.update({ where: { id }, data: { status: "CANCELLED", endedAt: new Date() } });
     await lobby.broadcast(id);
+    return { ok: true };
+  });
+
+  /** TO override: the named player forfeits the live set. */
+  app.post("/:id/matches/:key/forfeit", { preHandler: app.requireAdmin }, async (request, reply) => {
+    const { id, key } = request.params as { id: string; key: string };
+    const body = z.object({ userId: z.string().min(1) }).safeParse(request.body ?? {});
+    if (!body.success) return reply.code(400).send({ error: "userId required" });
+    if (!tm.forfeitMatch(id, key, body.data.userId)) return reply.code(409).send({ error: "No such live set for that player" });
     return { ok: true };
   });
 }

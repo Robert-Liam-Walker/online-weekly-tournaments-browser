@@ -15,14 +15,11 @@ export default function Events() {
         {events === null && <p className="p-5 text-slate-400">Loading...</p>}
         {events?.length === 0 && <p className="p-5 text-slate-400">Nothing yet.</p>}
         {events?.map((e) => (
-          <Link key={e.id} to={e.status === "COMPLETE" ? `/events/${e.id}` : "/arena"} className="flex items-center justify-between gap-4 p-5 hover:bg-ink-800">
-            <div>
-              <div className="font-semibold">{e.title}</div>
-              <div className="text-sm text-slate-400">{fmtLocal(e.scheduledAt)}</div>
-            </div>
+          <Link key={e.id} to={e.status === "COMPLETE" || e.status === "LIVE" ? `/events/${e.id}` : "/arena"} className="flex items-center justify-between gap-4 p-5 hover:bg-ink-800">
+            <div><div className="font-semibold">{e.title}</div><div className="text-sm text-slate-400">{fmtLocal(e.scheduledAt)}</div></div>
             <div className="text-right">
               <div className={`text-xs font-semibold uppercase tracking-wider ${e.status === "LIVE" ? "text-hp-500" : e.status === "COMPLETE" ? "text-slate-500" : "text-gold-300"}`}>{e.status}</div>
-              <div className="text-sm text-slate-400">{e.registered} registered</div>
+              <div className="text-sm text-slate-400">{e.status === "COMPLETE" || e.status === "LIVE" ? `${e.entrants ?? 0} entrants` : `${e.registered} registered`}</div>
             </div>
           </Link>
         ))}

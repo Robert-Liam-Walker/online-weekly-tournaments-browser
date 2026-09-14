@@ -86,7 +86,7 @@ done
 
 stage 5 "link"
 emcc -O2 "$WORK"/out/*.bc "$WORK"/shim/*.o \
-  -sEXPORTED_FUNCTIONS=_owt_init,_owt_set_input,_owt_step,_owt_force_end,_owt_events_ptr,_owt_player_ptr,_owt_tick,_owt_alive,_owt_snapshot_size,_owt_snapshot_write,_owt_snapshot_read,_owt_malloc,_owt_free \
+  -sEXPORTED_FUNCTIONS=_owt_init,_owt_set_input,_owt_step,_owt_events_ptr,_owt_player_ptr,_owt_tick,_owt_time_left,_owt_snapshot_size,_owt_snapshot_write,_owt_snapshot_read,_owt_malloc,_owt_free \
   -sSTANDALONE_WASM=1 -sALLOW_MEMORY_GROWTH=1 -sINITIAL_MEMORY=64MB --no-entry \
   -o "$OUT/engine.wasm"
 ls -la "$OUT/engine.wasm"

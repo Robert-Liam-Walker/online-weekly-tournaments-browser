@@ -2,84 +2,75 @@ import { describe, expect, it } from "vitest";
 import { BTN, NULL_INPUT, type EngineEvent, type PlayerInput, type WorldState } from "@owt/shared";
 import { StubEngine } from "./StubEngine.js";
 
-type Script = (t: number, s: number, world: WorldState) => PlayerInput;
+type Script = (t: number, slot: 0 | 1, world: WorldState) => PlayerInput;
 
-function run(seed: number, slots: number, frames: number, script: Script) {
+function run(seed: number, frames: number, script: Script, opts: { stocks?: number; timeSeconds?: number; stage?: "fd" | "battlefield" } = {}) {
   const e = new StubEngine();
-  e.init({ seed, slots, staminaHp: 150 });
+  e.init({ seed, stage: opts.stage ?? "fd", characters: ["fox", "marth"], stocks: opts.stocks ?? 4, timeSeconds: opts.timeSeconds ?? 480 });
   const events: EngineEvent[] = [];
   for (let t = 0; t < frames; t++) {
-    const world = e.state();
-    const inputs = Array.from({ length: slots }, (_, s) => script(t, s, world));
-    events.push(...e.step(inputs));
+    const w = e.state();
+    events.push(...e.step([script(t, 0, w), script(t, 1, w)]));
     if (events.some((ev) => ev.type === "end")) break;
   }
   return { engine: e, events };
 }
 
-/** A simple bot: walk toward the nearest living opponent, swing when in reach. */
-const hunter: Script = (_t, s, world) => {
-  const me = world.players[s]!;
-  if (!me.alive) return NULL_INPUT;
-  let best: { dx: number; d: number } | null = null;
-  for (const p of world.players) {
-    if (p.slot === s || !p.alive) continue;
-    const dx = p.x - me.x, d = Math.abs(dx) + Math.abs(p.y - me.y) * 0.5;
-    if (!best || d < best.d) best = { dx, d };
-  }
-  if (!best) return NULL_INPUT;
-  if (Math.abs(best.dx) < 60) return { x: Math.sign(best.dx), y: 0, buttons: BTN.A };
-  return { x: Math.sign(best.dx), y: 0, buttons: 0 };
+/** Chase the opponent along x and smash when in reach. */
+const hunter: Script = (_t, s, w) => {
+  const me = w.players[s]!, op = w.players[1 - s]!;
+  const dx = op.x - me.x;
+  if (Math.abs(dx) < 60) return { x: Math.sign(dx), y: 0, buttons: BTN.A };
+  return { x: Math.sign(dx) * 0.6, y: 0, buttons: 0 };
 };
 
-describe("StubEngine", () => {
-  it("is deterministic for identical inputs", () => {
-    const script: Script = (t, s) => ({ x: ((t + s) % 3) - 1, y: 0, buttons: t % 7 === 0 ? BTN.A : t % 11 === 0 ? BTN.JUMP : 0 });
-    const a = run(42, 100, 600, script);
-    const b = run(42, 100, 600, script);
+describe("StubEngine (stock 1v1)", () => {
+  it("is deterministic", () => {
+    const script: Script = (t, s) => ({ x: ((t + s) % 3) - 1, y: 0, buttons: t % 9 === 0 ? BTN.A : t % 13 === 0 ? BTN.JUMP : 0 });
+    const a = run(11, 1200, script), b = run(11, 1200, script);
     expect(JSON.stringify(a.engine.state())).toBe(JSON.stringify(b.engine.state()));
-    expect(a.events.length).toBe(b.events.length);
   });
 
-  it("ends a 100-fighter box with exactly one winner and every place assigned once", () => {
-    const { engine, events } = run(7, 100, 60 * 240, hunter);
+  it("an aggressor takes all four stocks from an idle opponent; the game ends on stocks", () => {
+    const { engine, events } = run(3, 60 * 480, (t, s, w) => (s === 0 ? hunter(t, s, w) : NULL_INPUT));
     const end = events.find((e) => e.type === "end");
-    expect(end).toBeDefined();
-    const elims = events.filter((e): e is Extract<EngineEvent, { type: "elim" }> => e.type === "elim");
-    expect(elims.length).toBe(99);
-    const places = new Set(elims.map((e) => e.place));
-    expect(places.size).toBe(99);
-    expect(Math.min(...places)).toBe(2);
-    expect(Math.max(...places)).toBe(100);
-    expect(engine.state().alive).toBe(1);
-    // KOs add up to the eliminations that had an attacker.
-    const kos = engine.state().players.reduce((a, p) => a + p.kos, 0);
-    expect(kos).toBe(elims.filter((e) => e.by !== null).length);
+    expect(end).toMatchObject({ type: "end", winner: 0, reason: "stocks" });
+    expect(events.filter((e) => e.type === "ko").length).toBe(4);
+    expect(engine.state().players[1]!.stocks).toBe(0);
+  });
+
+  it("respawns with invincibility and percent reset after a stock", () => {
+    const { events, engine } = run(5, 60 * 60, (t, s, w) => (s === 0 ? hunter(t, s, w) : NULL_INPUT), { stocks: 4 });
+    const ko = events.find((e) => e.type === "ko");
+    expect(ko).toBeDefined();
+    const p = engine.state().players[1]!;
+    expect(p.stocks).toBeLessThan(4);
+    expect(p.percent).toBeLessThan(200);
+  });
+
+  it("times out to the player with more stocks, then lower percent, else a replay", () => {
+    // Nobody moves: equal stocks and percent -> replay.
+    const a = run(1, 60 * 5, () => NULL_INPUT, { timeSeconds: 4 });
+    expect(a.events.at(-1)).toMatchObject({ type: "end", winner: null, reason: "timeout_replay" });
+    // One hit lands then time runs out: lower percent wins.
+    const b = run(2, 60 * 30, (t, s, w) => (s === 0 && t < 400 ? hunter(t, s, w) : NULL_INPUT), { timeSeconds: 20 });
+    const end = b.events.at(-1)!;
+    expect(end.type).toBe("end");
+    if (end.type === "end") expect(["timeout_percent", "timeout_stocks", "stocks"]).toContain(end.reason);
   });
 
   it("does nothing after the game has ended", () => {
-    const { engine } = run(1, 2, 10, () => NULL_INPUT);
-    engine.forceEnd();
+    const { engine } = run(1, 60 * 5, () => NULL_INPUT, { timeSeconds: 2 });
     const before = JSON.stringify(engine.state());
     engine.step([{ x: 1, y: 0, buttons: BTN.A }, NULL_INPUT]);
     expect(JSON.stringify(engine.state())).toBe(before);
   });
 
-  it("forceEnd ranks the remaining fighters by HP", () => {
-    const { engine } = run(5, 4, 30, (t, s) => (s === 0 && t < 20 ? { x: 1, y: 0, buttons: BTN.A } : NULL_INPUT));
-    const events = engine.forceEnd();
-    const elims = events.filter((e) => e.type === "elim");
-    expect(elims.length).toBe(3);
-    expect(events.at(-1)?.type).toBe("end");
-    expect(engine.state().alive).toBe(1);
-  });
-
   it("round-trips through serialize/deserialize", () => {
-    const { engine } = run(3, 10, 200, (t, s) => ({ x: (s % 3) - 1, y: 0, buttons: t % 5 === 0 ? BTN.A : 0 }));
-    const snap = engine.serialize();
+    const { engine } = run(7, 300, (t, s) => ({ x: (s ? -1 : 1) * ((t % 40) < 20 ? 1 : 0), y: 0, buttons: t % 7 === 0 ? BTN.JUMP : 0 }));
     const other = new StubEngine();
-    other.init({ seed: 999, slots: 10, staminaHp: 150 });
-    other.deserialize(snap);
+    other.init({ seed: 99, stage: "battlefield", characters: ["fox", "marth"], stocks: 4, timeSeconds: 480 });
+    other.deserialize(engine.serialize());
     expect(JSON.stringify(other.state())).toBe(JSON.stringify(engine.state()));
   });
 });

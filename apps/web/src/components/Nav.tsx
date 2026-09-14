@@ -11,7 +11,7 @@ export default function Nav() {
     <header className="sticky top-0 z-40 border-b border-ink-700 bg-ink-950/90 backdrop-blur">
       <div className="mx-auto flex max-w-6xl items-center gap-3 px-4 py-3">
         <Link to="/" className="mr-2 flex items-center gap-3">
-          <span className="grid h-8 w-8 place-items-center rounded border-2 border-gold-400 text-[10px] font-bold text-gold-400">100</span>
+          <span className="grid h-8 w-8 place-items-center rounded border-2 border-gold-400 text-[12px] font-bold text-gold-400">W</span>
           <span className="hidden text-sm font-bold tracking-wide sm:block">Online Weekly Tournament Series</span>
         </Link>
         <nav className="flex flex-1 items-center gap-1 overflow-x-auto">

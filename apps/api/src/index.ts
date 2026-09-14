@@ -9,8 +9,8 @@ import authPlugin from "./plugins/auth.js";
 import { authRoutes } from "./routes/auth.js";
 import { eventRoutes } from "./routes/events.js";
 import { resultRoutes } from "./routes/results.js";
-import { RoomManager } from "./room/RoomManager.js";
-import { attachSockets } from "./room/socket.js";
+import { TournamentManager } from "./tournament/TournamentManager.js";
+import { attachSockets } from "./tournament/socket.js";
 import { startScheduler } from "./scheduler.js";
 
 async function bootstrapAdmin(): Promise<void> {
@@ -31,24 +31,27 @@ async function main() {
   await app.register(rateLimit, { max: 300, timeWindow: "1 minute" });
   await app.register(authPlugin);
 
-  // Room manager + sockets share the Fastify HTTP server.
-  let lobbyRef: { broadcast(eventId: string): Promise<void> } | null = null;
-  const rooms = new RoomManager(config.engineKind, async (eventId) => { await lobbyRef?.broadcast(eventId); });
-  const { lobby } = attachSockets(app, app.server, rooms, config.corsOrigins);
+  let lobbyRef: { broadcast(eventId: string): Promise<void>; bracketChanged(eventId: string): void } | null = null;
+  const tm = new TournamentManager(
+    config.engineKind,
+    async (eventId) => { await lobbyRef?.broadcast(eventId); },
+    (eventId) => lobbyRef?.bracketChanged(eventId),
+  );
+  const { lobby } = attachSockets(app, app.server, tm, config.corsOrigins);
   lobbyRef = lobby;
 
   app.get("/api/health", async () => ({ ok: true, engine: config.engineKind, time: new Date().toISOString() }));
   await app.register(authRoutes, { prefix: "/api/auth" });
-  await app.register(async (sub) => eventRoutes(sub, { rooms, lobby }), { prefix: "/api/events" });
+  await app.register(async (sub) => eventRoutes(sub, { tm, lobby }), { prefix: "/api/events" });
   await app.register(resultRoutes, { prefix: "/api" });
 
   await bootstrapAdmin();
-  rooms.start();
-  const stopScheduler = startScheduler(rooms, (id) => lobby.broadcast(id), config.schedulerIntervalMs);
+  tm.start();
+  const stopScheduler = startScheduler(tm, (id) => lobby.broadcast(id), config.schedulerIntervalMs);
 
   const shutdown = async () => {
     stopScheduler();
-    rooms.stop();
+    tm.stop();
     await app.close();
     await prisma.$disconnect();
     process.exit(0);
