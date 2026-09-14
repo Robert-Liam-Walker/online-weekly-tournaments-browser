@@ -29,6 +29,8 @@ stage() { echo; echo "=== [$1] $2"; }
 
 stage 1 "toolchain"
 CLANG="${CLANG:-clang}"
+# clang-22 -> clang++-22 (versioned apt names put the suffix after the ++)
+CLANGXX="${CLANGXX:-${CLANG/clang/clang++}}"
 LLVM_CONFIG="${LLVM_CONFIG:-llvm-config}"
 command -v "$CLANG" >/dev/null || { echo "clang not found (apt install clang llvm-dev)"; exit 1; }
 "$CLANG" -print-targets | grep -q ppc || { echo "clang lacks the ppc target"; exit 1; }
@@ -49,7 +51,7 @@ else
   echo "gwtool.wasm32.patch is not a diff yet; stage 2 will fail at --triple until it is (see docs/ENGINE.md)"
 fi
 mkdir -p "$WORK/gwtool"
-"${CLANG}++" -std=c++17 -O2 $("$LLVM_CONFIG" --cxxflags) "$WORK/melee/pc/tools/gwtool/gwtool.cpp" \
+"$CLANGXX" -std=c++17 -O2 $("$LLVM_CONFIG" --cxxflags) "$WORK/melee/pc/tools/gwtool/gwtool.cpp" \
   -o "$WORK/gwtool/gwtool" $("$LLVM_CONFIG" --ldflags --libs core irreader bitwriter passes target powerpc webassembly x86 support) -lpthread -lz
 "$WORK/gwtool/gwtool" --help | grep -q -- '--triple' || { echo "gwtool has no --triple option: the wasm32 patch is not applied"; exit 1; }
 
