@@ -30,7 +30,7 @@ Emscripten backend. That is the whole plan.
 |---|---|---|---|
 | 0 | Decomp complete and linkable | done (upstream) | decomp.dev: 100.00% decompiled, 100.00% linked |
 | 1 | Game TUs compile through clang's PowerPC front-end to IR with the pc-port flags | **proven locally** (2026-09-14) | `ftcoll.c` 15,168 lines IR, `ftlib.c`, `lbvector.c`, clang 22.1.8, `target datalayout = "E-m:e-p:32:32-Fn32-i64:64-n32"` |
-| 2 | `gwtool` with a `--triple wasm32-unknown-emscripten` option | not started | needs LLVM dev libs: Linux/CI (`.github/workflows/engine.yml`); Windows LLVM installer ships no `LLVMCore.lib` |
+| 2 | `gwtool` with a `--triple wasm32-unknown-emscripten` option | patch written, CI build pending | `packages/engine/build/gwtool.wasm32.patch` (27 lines: `--triple`, WebAssembly target init, `gwfix` section + `__start_gwfix` in `gw_runtime.c`); gwtool needs LLVM 21+ APIs, so CI installs LLVM 22 from apt.llvm.org (Ubuntu's 18 fails to compile it); Windows LLVM installer ships no dev libs |
 | 3 | All 989 game TUs through clang + gwtool to wasm32 bitcode | not started | `packages/engine/build/build.sh` stage 3 |
 | 4 | Shims under `TARGET_WASM`: DVD from a `File`, CARD in IndexedDB, PAD from Gamepad API, AX via SDL3 audio, GX via Aurora/WebGPU | not started | `pc/platform/*.c` + `packages/engine/build/shims/` |
 | 5 | `owt_*` ABI (`owt_abi.c`) driving a stamina VS match with N fighters on a box stage; headless mode for the room server | not started | `packages/engine/build/shims/owt_abi.c` is the ABI skeleton; `WasmEngine.ts` is the loader |
