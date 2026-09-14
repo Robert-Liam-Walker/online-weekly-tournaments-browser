@@ -22,10 +22,18 @@ index d0e098c..09ee242 100644
  void gw_apply_fixups(void) {
    uint32_t **p = (uint32_t **)(gw_fixups_start + 1);
 diff --git a/pc/tools/gwtool/gwtool.cpp b/pc/tools/gwtool/gwtool.cpp
-index 37c8401..65f2e15 100644
+index 37c8401..4e6e996 100644
 --- a/pc/tools/gwtool/gwtool.cpp
 +++ b/pc/tools/gwtool/gwtool.cpp
-@@ -78,6 +78,8 @@ cl::opt<std::string> SymPrefix("prefix", cl::desc("External symbol prefix"), cl:
+@@ -29,6 +29,7 @@
+ #include "llvm/ADT/DenseSet.h"
+ #include "llvm/ADT/SmallVector.h"
+ #include "llvm/ADT/StringRef.h"
++#include "llvm/ADT/StringSet.h"
+ #include "llvm/Bitcode/BitcodeWriter.h"
+ #include "llvm/IR/Constants.h"
+ #include "llvm/IR/DataLayout.h"
+@@ -78,6 +79,8 @@ cl::opt<std::string> SymPrefix("prefix", cl::desc("External symbol prefix"), cl:
  cl::opt<std::string> ImportsFile("imports",
                                   cl::desc("Write undefined external symbols to this file"),
                                   cl::init(""));
@@ -34,7 +42,7 @@ index 37c8401..65f2e15 100644
  cl::opt<std::string> CPUName("mcpu", cl::desc("x86 CPU"), cl::init("pentium4"));
  cl::opt<std::string> FeatureStr("mattr", cl::desc("x86 features"),
                                  cl::init("+sse,+sse2,+cmov,+cx8,+mmx,+fxsr"));
-@@ -87,6 +89,10 @@ cl::opt<bool> NoSafeArith("no-safe-arith",
+@@ -87,6 +90,10 @@ cl::opt<bool> NoSafeArith("no-safe-arith",
  cl::opt<bool> NoSwap("no-swap", cl::desc("Debug: do not byte-swap memory accesses"),
                       cl::init(false));
  
@@ -45,7 +53,7 @@ index 37c8401..65f2e15 100644
  [[noreturn]] void fatal(const Twine &Msg) {
    errs() << "gwtool: error: " << InputFilename << ": " << Msg << "\n";
    exit(1);
-@@ -487,7 +493,7 @@ private:
+@@ -487,7 +494,7 @@ private:
      auto *AT = ArrayType::get(P, Entries.size());
      auto *Table = new GlobalVariable(M, AT, /*isConstant=*/true, GlobalValue::InternalLinkage,
                                       ConstantArray::get(AT, Entries), "__gw_fixups");
@@ -54,7 +62,7 @@ index 37c8401..65f2e15 100644
      Table->setAlignment(Align(4));
      appendToUsed(M, {Table});
    }
-@@ -640,6 +646,11 @@ int main(int argc, char **argv) {
+@@ -640,6 +647,11 @@ int main(int argc, char **argv) {
    LLVMInitializeX86TargetMC();
    LLVMInitializeX86AsmPrinter();
    LLVMInitializeX86AsmParser();
@@ -66,7 +74,7 @@ index 37c8401..65f2e15 100644
    cl::ParseCommandLineOptions(argc, argv, "gwtool: Melee PC port big-endian-memory transformer\n");
  
    LLVMContext Ctx;
-@@ -657,7 +668,13 @@ int main(int argc, char **argv) {
+@@ -657,7 +669,13 @@ int main(int argc, char **argv) {
    if (!OldDL.isBigEndian())
      fatal("expected a big-endian data layout");
  
