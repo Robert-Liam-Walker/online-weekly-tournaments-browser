@@ -59,8 +59,12 @@ stage 3 "game translation units"
 ( cd "$WORK/melee" && [[ -d build/GALE01/include ]] || python3 configure.py >/dev/null 2>&1 || true )
 mkdir -p "$WORK/out"
 fail=0; ok=0
+# TUs whose only dependency is a font bitmap generated from the disc (`*_font.inc`, produced by
+# the decomp's asset step); text rendering is not on the match path, so they are stubbed out here.
+SKIP_TUS="src/sysdolphin/baselib/hsd_3915.c src/sysdolphin/baselib/sislib_font.c"
 while IFS= read -r f; do
   [[ -z "$f" ]] && continue
+  case " $SKIP_TUS " in *" $f "*) echo "SKIP $f (disc-generated font data)"; continue ;; esac
   n="$(echo "$f" | tr '/' '_')"
   if "$CLANG" --target=ppc32-none-eabi -std=c99 -nostdinc -fno-builtin -DLINT -DTARGET_PC -DTARGET_WASM \
       -fno-short-enums -fsigned-char -mlong-double-64 -fno-strict-aliasing -fwrapv -fcommon -fgnu89-inline \
